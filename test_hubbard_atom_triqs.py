@@ -10,41 +10,31 @@ from triqs.operators import c, c_dag, n
 from triqs.gf import inverse, iOmega_n, Fourier
 from triqs.gf.gf_factories import make_gf_imtime, make_gf_imfreq, make_gf_dlr_imtime
 
-# ----------------------------------------------------------------------
+from triqs.atom_diag import AtomDiag, atomic_g_iw, atomic_g_tau
 
-from pyed.TriqsExactDiagonalization import TriqsExactDiagonalization
+# ----------------------------------------------------------------------
 
 from fitdlr import fitdlr
 from fitdlr import BlockSymmetrizer
 
 # ----------------------------------------------------------------------
 
-
-# ----------------------------------------------------------------------
-
 def get_H(U=1., mu=0.0, B=0.05):
-    H = U * (n('up', 0) - 0.5)*(n('dn', 0) - 0.5) - mu * (n('up', 0) + n('dn', 0)) + B * (n('up', 0) - n('dn', 0))
+    H = U * (n('0', 0) - 0.5)*(n('0', 1) - 0.5) - mu * (n('0', 0) + n('0', 1)) + B * (n('0', 0) - n('0', 1))
     return H
 
 
 def get_gfs(H, beta, fundamental_operators, niw=128):
 
     ntau = 6 * niw + 1
+
+    gf_struct = [('0', 2)]
+    fops = [ list(o)[0][0][-1][-1] for o in fundamental_operators ]
+
+    ad = AtomDiag(H, fops)
+    G_iw = atomic_g_iw(ad, beta, gf_struct, niw)['0']
+    G_tau = atomic_g_tau(ad, beta, gf_struct, ntau)['0']
     
-    ed = TriqsExactDiagonalization(H, fundamental_operators, beta)
-
-    tmesh = MeshImTime(beta, 'Fermion', ntau)
-    wmesh = MeshImFreq(beta, 'Fermion', niw)
-
-    G_tau = Gf(mesh=tmesh, target_shape=(2,2))
-    G_iw = Gf(mesh=wmesh, target_shape=(2,2))
-
-    s = ['up', 'dn']
-    for i, j in itertools.product(range(2), repeat=2):
-        si, sj = s[i], s[j]
-        ed.set_g2_tau(G_tau[i, j], c(si, 0), c_dag(sj, 0))
-        ed.set_g2_iwn(G_iw[i, j], c(si, 0), c_dag(sj, 0))
-
     return G_tau, G_iw
     
         
@@ -59,7 +49,7 @@ def test_fit(verbose=False):
     H = get_H()
     H_int = H - H0
 
-    fundamental_operators = [c('up', 0), c('dn', 0)]
+    fundamental_operators = [c('0', 0), c('0', 1)]
 
     G0_tau, G0_iw = get_gfs(H0, beta, fundamental_operators)
     G_tau, G_iw = get_gfs(H, beta, fundamental_operators)
@@ -102,19 +92,22 @@ def test_fit(verbose=False):
     
     G_tau_fit = make_gf_imtime(G_c, len(tau_i))
     G_tau_diff = np.max(np.abs(G_tau_org.data - G_tau_fit.data))
-    #print(f'G_tau_diff = {G_tau_diff:1.1E}')
-    assert( G_tau_diff < 1e-4 )
     
     iwn = np.array([complex(w) for w in G_iw.mesh])
     G_iw_fit = make_gf_imfreq(G_c, len(G_iw.mesh)//2)
     G_iw_diff = np.max(np.abs(G_iw.data - G_iw_fit.data))
-    #print(f'G_iw_diff = {G_iw_diff:1.1E}')
-    assert( G_iw_diff < 1e-4 )
     
     Sigma_iw_fit = G_iw_fit.copy()
     Sigma_iw_fit << inverse(G0_iw) - inverse(G_iw_fit)
     Sigma_iw_diff = np.max(np.abs(Sigma_iw.data - Sigma_iw_fit.data))
-    #print(f'Sigma_iw_diff = {Sigma_iw_diff:1.1E}')
+
+    if verbose:
+        print(f'G_tau_diff = {G_tau_diff:1.1E}')
+        print(f'G_iw_diff = {G_iw_diff:1.1E}')
+        print(f'Sigma_iw_diff = {Sigma_iw_diff:1.1E}')
+
+    assert( G_tau_diff < 1e-4 )
+    assert( G_iw_diff < 1e-4 )
     assert( Sigma_iw_diff < 1e-3 )
 
     if verbose:
@@ -171,5 +164,4 @@ def test_fit(verbose=False):
             
     
 if __name__ == '__main__':
-
-    test_fit(verbose=False)
+    test_fit(verbose=True)
