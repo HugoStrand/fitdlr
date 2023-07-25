@@ -19,6 +19,7 @@ from triqs_tprf.OperatorUtils import quadratic_matrix_from_operator
 
 from pyed.TriqsExactDiagonalization import TriqsExactDiagonalization
 
+from fitdlr import pydlr_driver
 from fitdlr import BlockSymmetrizer
 from fitdlr import constrained_lstsq_dlr_from_tau
 
@@ -137,8 +138,11 @@ def test_fit(verbose=False):
     #d = dlr(lamb=40, eps=1e-8)
     #d = dlr(lamb=40, eps=1e-9)
     d = dlr(lamb=30, eps=1e-9)
+    #d = dlr(lamb=8., eps=1e-15)
     print(f'n_dlr = {len(d)}')
 
+    dd = pydlr_driver(d, beta)
+    
     tol = 1e-4
     #tol = 1e-4
     G_tau.data[:] += np.random.normal(scale=tol, size=G_tau.data.shape)
@@ -163,7 +167,7 @@ def test_fit(verbose=False):
         )
     
     G_xaa_sym, sol = constrained_lstsq_dlr_from_tau(
-        d, h_ab, U_abcd, tau_i, G_iaa, beta, symmetrizer=sym, **opt)
+        dd, h_ab, U_abcd, tau_i, G_iaa, beta, symmetrizer=sym, **opt)
     G_laa_sym = d.tau_from_dlr(G_xaa_sym)
     
     print(f'tau-fit: {sol.message}')
